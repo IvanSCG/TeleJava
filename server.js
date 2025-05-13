@@ -1,28 +1,69 @@
-const express = require('express');
-const multer = require('multer');
-const cors = require('cors');
-const app = express();
 
-app.use(cors());
+// server.js
+// ──────────────────────────────────────────────────────────────────────────────
+// 1)  CHAT TCP – inalterado
+const net     = require('net');
+const clients = \[];
 
-const storage = multer.diskStorage({
-    destination: function(req, file, cb) {
-        cb(null, './uploads');
-    },
-    filename: function(req, file, cb) {
-        cb(null, Date.now() + '-' + file.originalname);
-    }
+const CHAT\_PORT = process.env.CHAT\_PORT || 12345;
+
+net.createServer(socket => {
+clients.push(socket);
+
+socket.on('data', data => {
+// broadcast al resto
+clients.forEach(c => { if (c !== socket) c.write(data); });
 });
 
+socket.on('end', () => {
+const i = clients.indexOf(socket);
+if (i !== -1) clients.splice(i, 1);
+});
+}).listen(CHAT\_PORT, () =>
+console.log(`Chat TCP escuchando en ${CHAT_PORT}`)
+);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 2)  HTTP/REST  –  ficheros
+const path    = require('path');
+const fs      = require('fs');
+const express = require('express');
+const multer  = require('multer');
+const cors    = require('cors');
+
+const HTTP\_PORT = process.env.HTTP\_PORT || 3000;
+const UPLOAD\_DIR = path.join(\_\_dirname, 'uploads');
+
+// crear carpeta si no existe
+if (!fs.existsSync(UPLOAD\_DIR)) fs.mkdirSync(UPLOAD\_DIR, { recursive: true });
+
+// configuración de Multer (nombre único conservando la extensión original)
+const storage = multer.diskStorage({
+destination: (*, \_\_, cb) => cb(null, UPLOAD\_DIR),
+filename   : (*, file, cb) => {
+const unique = Date.now() + '-' + Math.round(Math.random() \* 1e9);
+cb(null, unique + path.extname(file.originalname));
+}
+});
 const upload = multer({ storage });
 
+const app = express();
+app.use(cors());                               // para que el cliente Java pueda hacer la petición
+
+// ---- POST /upload -----------------------------------------------------------
 app.post('/upload', upload.single('file'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
-    return res.status(200).json({ url: `/uploads/${req.file.filename}` });
+if (!req.file) return res.status(400).json({ error: 'no file' });
+
+const fileName = req.file.originalname;
+const id       = req.file.filename;          // nombre real en disco
+const url      = `${req.protocol}://${req.hostname}:${HTTP_PORT}/downloads/${id}`;
+
+res.json({ filename: fileName, url });
 });
 
-app.listen(3000, () => {
-    console.log('Server running on port 3000');
-});
+// ---- GET /downloads/\:id  ----------------------------------------------------
+app.use('/downloads', express.static(UPLOAD\_DIR));
+
+app.listen(HTTP\_PORT, () =>
+console.log(`HTTP de ficheros escuchando en ${HTTP_PORT}`)
+);
