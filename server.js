@@ -14,7 +14,7 @@ const fs      = require("fs");
 const path    = require("path");
 
 /*──────── configuración global ────────*/
-const CHAT_PORT   = process.env.CHAT_PORT || 123456;  // ⇦ puerto TCP
+const CHAT_PORT   = process.env.CHAT_PORT || 12345;  // ⇦ puerto TCP
 const HTTP_PORT   = process.env.PORT      || 3000;   // ⇦ puerto HTTP
 const UPLOAD_DIR  = path.join(__dirname, "uploads"); // ⇦ carpeta subidas
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
