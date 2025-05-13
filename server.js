@@ -30,7 +30,7 @@ const express = require('express');
 const multer  = require('multer');
 const cors    = require('cors');
 
-const HTTP_PORT = process.env.HTTP_PORT || 3000;
+const HTTP_PORT = process.env.HTTP_PORT || 12345;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 // crear carpeta si no existe
