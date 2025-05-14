@@ -30,7 +30,7 @@ const express = require('express');
 const multer  = require('multer');
 const cors    = require('cors');
 
-// ⚠️ Railway inyecta PORT, nunca HTTP_PORT
+// ⚠️  Railway solo exporta PORT
 const HTTP_PORT  = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
@@ -56,6 +56,8 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
   const filename = req.file.originalname;
   const id       = req.file.filename;     // nombre real en disco
+
+  // host correcto tanto local como en Railway
   const url      = `${req.protocol}://${req.get('host')}/downloads/${id}`;
 
   res.json({ filename, url });
