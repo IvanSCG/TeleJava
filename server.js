@@ -4,7 +4,9 @@
 const net     = require('net');
 const clients = [];
 
-const CHAT_PORT = process.env.CHAT_PORT || 12345;
+// Puerto para el chat: se puede fijar con la variable de entorno CHAT_PORT
+// • En Railway:   Settings → Variables →  CHAT_PORT = 59090
+const CHAT_PORT = process.env.CHAT_PORT || 59090;
 
 net.createServer(socket => {
   clients.push(socket);
@@ -30,7 +32,7 @@ const express = require('express');
 const multer  = require('multer');
 const cors    = require('cors');
 
-// ⚠️  Railway solo exporta PORT
+// Railway inyecta la variable PORT (en tu caso 12345) para el servicio web
 const HTTP_PORT  = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
