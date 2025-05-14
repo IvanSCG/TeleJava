@@ -33,7 +33,7 @@ const multer  = require('multer');
 const cors    = require('cors');
 
 // Railway inyecta la variable PORT (en tu caso 12345) para el servicio web
-const HTTP_PORT  = process.env.PORT || 3000;
+const HTTP_PORT  = process.env.PORT || 12345;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 // crea la carpeta si no existe
