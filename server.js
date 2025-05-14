@@ -30,7 +30,8 @@ const express = require('express');
 const multer  = require('multer');
 const cors    = require('cors');
 
-const HTTP_PORT  = process.env.HTTP_PORT || 3000;
+// ⚠️ Railway inyecta PORT, nunca HTTP_PORT
+const HTTP_PORT  = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 // crea la carpeta si no existe
@@ -55,7 +56,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
   const filename = req.file.originalname;
   const id       = req.file.filename;     // nombre real en disco
-  const url      = `${req.protocol}://${req.hostname}:${HTTP_PORT}/downloads/${id}`;
+  const url      = `${req.protocol}://${req.get('host')}/downloads/${id}`;
 
   res.json({ filename, url });
 });
