@@ -1,16 +1,19 @@
 const net = require('net');
-const clients = {}; // username: socket
-const sockets = []; // Para recorrido fácil al hacer broadcast
-const PORT = process.env.PORT || 12345; // Railway asignará PORT automáticamente
+const clients = {};   // username: socket
+const sockets = [];   // lista para broadcast
+const PORT = process.env.PORT || 12345;
 
-function broadcastPresence(user, online) {
+// Función para avisar de presencia a TODOS
+function broadcastPresence(user, online, exceptSocket=null) {
     const presenceMsg = JSON.stringify({
         type: "presence",
         user: user,
         online: online
     });
     sockets.forEach(sock => {
-        try { sock.write(presenceMsg + '\n'); } catch (e) {}
+        if (sock !== exceptSocket) {   // exceptSocket se usa para enviar SOLO a otros, opcional
+            try { sock.write(presenceMsg + '\n'); } catch (e) {}
+        }
     });
 }
 
@@ -24,16 +27,34 @@ net.createServer(socket => {
             const messages = data.toString().split('\n').filter(line => line.trim());
             messages.forEach(line => {
                 const msg = JSON.parse(line);
+
                 if (msg.type === "ping") {
                     socket.write(JSON.stringify({type: "pong"}) + "\n");
                     return;
                 }
+
                 if (msg.type === "register" && msg.username) {
                     username = msg.username;
                     clients[username] = socket;
-                    broadcastPresence(username, true);
+
+                    // 🔥 NUEVO: Al usuario que acaba de entrar, envíale la presencia de los ya conectados
+                    Object.keys(clients).forEach(user => {
+                        if (user !== username) {
+                            // Solo le envío al nuevo usuario, no a todos
+                            socket.write(JSON.stringify({
+                                type: "presence",
+                                user: user,
+                                online: true
+                            }) + '\n');
+                        }
+                    });
+
+                    // Ahora, como antes, notificamos a los demás que este usuario está online
+                    broadcastPresence(username, true, socket); // Ya le has enviado antes, no repetir
+
                     return;
                 }
+
                 // Broadcast solo a otros (como antes)
                 sockets.forEach(c => { if (c !== socket) c.write(line + '\n'); });
             });
