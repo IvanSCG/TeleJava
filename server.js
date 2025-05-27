@@ -36,10 +36,13 @@ net.createServer(socket => {
                 if (msg.type === "register" && msg.username) {
                     username = msg.username;
                     clients[username] = socket;
-
+                    // DEBUG: ¿Cuántos clientes hay y quiénes son?
+    console.log("[SERVER] Usuario registrado:", username);
+    console.log("[SERVER] Usuarios conectados ahora:", Object.keys(clients));
                     // 🔥 NUEVO: Al usuario que acaba de entrar, envíale la presencia de los ya conectados
                     Object.keys(clients).forEach(user => {
                         if (user !== username) {
+                            console.log(`[SERVER] Enviando presence de ${user} a ${username}`);
                             // Solo le envío al nuevo usuario, no a todos
                             socket.write(JSON.stringify({
                                 type: "presence",
