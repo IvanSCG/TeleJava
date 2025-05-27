@@ -1,23 +1,58 @@
-// SOLO EL CHAT TCP - NADA DE EXPRESS
 const net = require('net');
-const clients = [];
+const clients = {}; // username: socket
+const sockets = []; // Para recorrido fácil al hacer broadcast
 const PORT = process.env.PORT || 12345; // Railway asignará PORT automáticamente
 
+function broadcastPresence(user, online) {
+    const presenceMsg = JSON.stringify({
+        type: "presence",
+        user: user,
+        online: online
+    });
+    sockets.forEach(sock => {
+        try { sock.write(presenceMsg + '\n'); } catch (e) {}
+    });
+}
+
 net.createServer(socket => {
-  clients.push(socket);
-  socket.on('data', data => {
-  try {
-    const msg = JSON.parse(data.toString());
-    if (msg.type === "ping") {
-      console.log("Recibido ping de", socket.remoteAddress);
-      socket.write(JSON.stringify({type: "pong"}) + "\n");
-      return;
-    }
-  } catch (e) { }
-  clients.forEach(c => { if (c !== socket) c.write(data); });
-})
-  socket.on('end', () => {
-    const i = clients.indexOf(socket);
-    if (i !== -1) clients.splice(i, 1);
-  });
+    let username = null;
+    sockets.push(socket);
+
+    socket.on('data', data => {
+        try {
+            // Puede venir más de un mensaje junto
+            const messages = data.toString().split('\n').filter(line => line.trim());
+            messages.forEach(line => {
+                const msg = JSON.parse(line);
+                if (msg.type === "ping") {
+                    socket.write(JSON.stringify({type: "pong"}) + "\n");
+                    return;
+                }
+                if (msg.type === "register" && msg.username) {
+                    username = msg.username;
+                    clients[username] = socket;
+                    broadcastPresence(username, true);
+                    return;
+                }
+                // Broadcast solo a otros (como antes)
+                sockets.forEach(c => { if (c !== socket) c.write(line + '\n'); });
+            });
+        } catch (e) { /* ignorar parsing errors */ }
+    });
+
+    socket.on('end', () => {
+        // Borrar del listado sockets y del objeto clients
+        const i = sockets.indexOf(socket);
+        if (i !== -1) sockets.splice(i, 1);
+        if (username && clients[username] === socket) {
+            delete clients[username];
+            broadcastPresence(username, false);
+        }
+    });
+
+    socket.on('error', () => {
+        // Manejar el cierre por error igual que 'end'
+        socket.emit('end');
+    });
+
 }).listen(PORT, () => console.log(`Chat TCP escuchando en ${PORT}`));
