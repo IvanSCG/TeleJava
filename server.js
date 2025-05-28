@@ -1,82 +1,91 @@
 const net = require('net');
-const clients = {};   // username: socket
-const sockets = [];   // lista para broadcast
-const PORT = process.env.PORT || 12345;
 
-// Función para avisar de presencia a TODOS
-function broadcastPresence(user, online, exceptSocket=null) {
-    const presenceMsg = JSON.stringify({
-        type: "presence",
-        user: user,
-        online: online
-    });
-    sockets.forEach(sock => {
-        if (sock !== exceptSocket) {   // exceptSocket se usa para enviar SOLO a otros, opcional
-            try { sock.write(presenceMsg + '\n'); } catch (e) {}
-        }
-    });
+const PORT = process.env.PORT || 12345;
+const clients = {};          // username → socket
+const sockets = [];          // todos los sockets abiertos
+
+// ---------- helpers --------------------------------------------------------
+
+function statusMessage(user, online) {
+  return JSON.stringify({
+    type  : 'STATUS',
+    user  : user,
+    status: online ? 'ONLINE' : 'OFFLINE'
+  }) + '\n';
 }
 
+// Notifica a todos (o a todos menos uno) el cambio de presencia
+function broadcastStatus(user, online, exceptSocket = null) {
+  const msg = statusMessage(user, online);
+  sockets.forEach(sock => {
+    if (sock !== exceptSocket) {
+      try { sock.write(msg); } catch { /*silencio*/ }
+    }
+  });
+}
+
+// ---------- servidor -------------------------------------------------------
+
 net.createServer(socket => {
-    let username = null;
-    sockets.push(socket);
+  let username = null;
+  sockets.push(socket);
 
-    socket.on('data', data => {
-        try {
-            // Puede venir más de un mensaje junto
-            const messages = data.toString().split('\n').filter(line => line.trim());
-            messages.forEach(line => {
-                const msg = JSON.parse(line);
+  socket.on('data', data => {
+    // ⚠️ pueden venir varios mensajes en el mismo paquete TCP
+    data.toString()
+        .split('\n')
+        .filter(line => line.trim())
+        .forEach(line => {
+          try {
+            const msg = JSON.parse(line);
 
-                if (msg.type === "ping") {
-                    socket.write(JSON.stringify({type: "pong"}) + "\n");
-                    return;
-                }
+            // --------- keep-alive ping/pong -----------------
+            if (msg.type === 'ping') {
+              socket.write('{"type":"pong"}\n');
+              return;
+            }
 
-                if (msg.type === "register" && msg.username) {
-                    username = msg.username;
-                    clients[username] = socket;
-                    // DEBUG: ¿Cuántos clientes hay y quiénes son?
-    console.log("[SERVER] Usuario registrado:", username);
-    console.log("[SERVER] Usuarios conectados ahora:", Object.keys(clients));
-                    // 🔥 NUEVO: Al usuario que acaba de entrar, envíale la presencia de los ya conectados
-                    Object.keys(clients).forEach(user => {
-                        if (user !== username) {
-                            console.log(`[SERVER] Enviando presence de ${user} a ${username}`);
-                            // Solo le envío al nuevo usuario, no a todos
-                            socket.write(JSON.stringify({
-                                type: "status",
-                                user: user,
-                                online: true
-                            }) + '\n');
-                        }
-                    });
+            // --------- registro de usuario ------------------
+            if (msg.type === 'register' && msg.username) {
+              username = msg.username;
+              clients[username] = socket;
 
-                    // Ahora, como antes, notificamos a los demás que este usuario está online
-                    broadcastPresence(username, true, socket); // Ya le has enviado antes, no repetir
+              console.log('[SERVER] Registrado:', username);
+              console.log('[SERVER] Conectados:', Object.keys(clients));
 
-                    return;
-                }
+              // 1⃣   Envía al NUEVO la lista de quién está online
+              Object.keys(clients).forEach(u => {
+                socket.write(statusMessage(u, true));
+              });
 
-                // Broadcast solo a otros (como antes)
-                sockets.forEach(c => { if (c !== socket) c.write(line + '\n'); });
+              // 2⃣   Informa a los DEMÁS de que este usuario está online
+              broadcastStatus(username, true, socket);
+              return;
+            }
+
+            // --------- broadcast de cualquier otro mensaje ---
+            sockets.forEach(s => {
+              if (s !== socket) s.write(line + '\n');
             });
-        } catch (e) { /* ignorar parsing errors */ }
-    });
 
-    socket.on('end', () => {
-        // Borrar del listado sockets y del objeto clients
-        const i = sockets.indexOf(socket);
-        if (i !== -1) sockets.splice(i, 1);
-        if (username && clients[username] === socket) {
-            delete clients[username];
-            broadcastPresence(username, false);
-        }
-    });
+          } catch {
+            /* ignorar mensajes mal formados */
+          }
+        });
+  });
 
-    socket.on('error', () => {
-        // Manejar el cierre por error igual que 'end'
-        socket.emit('end');
-    });
+  // ---------- desconexión (normal o error) ----------------
+  function handleDisconnect() {
+    const idx = sockets.indexOf(socket);
+    if (idx !== -1) sockets.splice(idx, 1);
+
+    if (username && clients[username] === socket) {
+      delete clients[username];
+      broadcastStatus(username, false);   // avisa OFFLINE
+    }
+  }
+
+  socket.on('end'  , handleDisconnect);
+  socket.on('error', handleDisconnect);
 
 }).listen(PORT, () => console.log(`Chat TCP escuchando en ${PORT}`));
