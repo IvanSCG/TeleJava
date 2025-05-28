@@ -45,7 +45,7 @@ net.createServer(socket => {
                             console.log(`[SERVER] Enviando presence de ${user} a ${username}`);
                             // Solo le envío al nuevo usuario, no a todos
                             socket.write(JSON.stringify({
-                                type: "presence",
+                                type: "status",
                                 user: user,
                                 online: true
                             }) + '\n');
