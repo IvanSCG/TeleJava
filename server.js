@@ -8,14 +8,17 @@ net.createServer(socket => {
   socket.on('data', data => {
   try {
     const msg = JSON.parse(data.toString());
+    // Si es un ping, respondemos con un pong SOLO al emisor
     if (msg.type === "ping") {
-      console.log("Recibido ping de", socket.remoteAddress);
       socket.write(JSON.stringify({type: "pong"}) + "\n");
       return;
     }
-  } catch (e) { }
+  } catch (e) {
+    // No es JSON, lo ignoramos (o puedes hacer retransmisión por defecto)
+  }
+  // retransmite a todos menos al emisor
   clients.forEach(c => { if (c !== socket) c.write(data); });
-})
+});
   socket.on('end', () => {
     const i = clients.indexOf(socket);
     if (i !== -1) clients.splice(i, 1);
